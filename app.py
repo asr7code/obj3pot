@@ -1,61 +1,54 @@
 import os
-os.environ["QT_QPA_PLATFORM"] = "offscreen"  # Prevent Qt errors in Streamlit
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 import streamlit as st
 import numpy as np
 from PIL import Image
-from ultralytics import YOLO
 
-# Try OpenCV import safely
 try:
-    import cv2
-except:
-    cv2 = None
-    st.warning("⚠️ OpenCV GUI backend disabled. Running headless mode.")
+    from ultralytics import YOLO
+except Exception as e:
+    st.error(f"YOLO import failed: {e}")
+    st.stop()
 
 # --------------------------
-# Load YOLO Model
+# Load Model
 # --------------------------
 @st.cache_resource
 def load_model():
-    model = YOLO("best.pt")   # replace with your model file name
-    return model
+    model_path = "best.pt"
+    if not os.path.exists(model_path):
+        st.error("❌ best.pt file not found. Upload your model file to project root.")
+        st.stop()
+    return YOLO(model_path)
 
 model = load_model()
 
 # --------------------------
-# Streamlit UI
+# UI
 # --------------------------
-st.title("🚦 Object Detection App (YOLO + Streamlit)")
-st.write("Upload an image to detect objects")
+st.title("🚧 Pothole Detection (YOLOv8)")
+st.write("Upload an image to detect potholes.")
 
-uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file is not None:
-    img = Image.open(uploaded_file)
+if file:
+    img = Image.open(file)
     st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    # Convert to numpy array
     img_np = np.array(img)
 
-    st.write("🔍 Detecting...")
-    
-    # Run YOLO (Force CPU for Streamlit)
+    st.write("⚙️ Running model...")
+
     results = model(img_np, device="cpu")
 
-    # Plot results
     result_img = results[0].plot()
+    st.image(result_img, caption="Result", use_column_width=True)
 
-    st.image(result_img, caption="Detection Output", use_column_width=True)
-
-    # Show detected classes
-    st.subheader("🧾 Detected Objects:")
+    st.subheader("Detections:")
     names = results[0].names
 
     for box in results[0].boxes:
-        cls = int(box.cls)
-        conf = float(box.conf)
-        st.write(f"✔️ {names[cls]} — {conf:.2f}")
+        st.write(f"✔️ {names[int(box.cls)]} ({float(box.conf):.2f})")
 
-st.markdown("---")
-st.caption("✅ Powered by YOLOv8 + Streamlit (Latest Versions)")
+st.caption("✅ YOLOv8 + Streamlit Cloud | CPU Mode | Latest Versions")
