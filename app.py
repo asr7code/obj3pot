@@ -1,48 +1,35 @@
 import streamlit as st
-
-# Try importing cv2 safely
-try:
-    import cv2
-except ImportError:
-    st.write("Installing OpenCV...")
-    import os
-    os.system("pip install opencv-python-headless>=4.10.0")
-    import cv2
-
-# ✅ Patch OpenCV GUI functions for headless mode
-if not hasattr(cv2, "IMREAD_COLOR"):
-    cv2.IMREAD_COLOR = 1
-if not hasattr(cv2, "IMREAD_GRAYSCALE"):
-    cv2.IMREAD_GRAYSCALE = 0
-if not hasattr(cv2, "IMWRITE_JPEG_QUALITY"):
-    cv2.IMWRITE_JPEG_QUALITY = 1
-if not hasattr(cv2, "imshow"):
-    cv2.imshow = lambda *args, **kwargs: None
-if not hasattr(cv2, "waitKey"):
-    cv2.waitKey = lambda *args, **kwargs: None
-
 from ultralytics import YOLO
 from PIL import Image
 import numpy as np
 import tempfile
 
-st.title("Pothole Detection App 🚧")
-st.write("Upload an image to detect potholes")
+st.title("🚧 Pothole Detection App")
+st.write("Upload an image to detect potholes using YOLOv8")
 
+# Load model
 model = YOLO("best.pt")
 
+# File uploader
 uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+if uploaded_file is not None:
+    # Show uploaded image
+    img = Image.open(uploaded_file)
+    st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    with st.spinner("Detecting potholes..."):
-        temp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-        image.save(temp.name)
+    # Save image temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+        img.save(tmp.name)
+        temp_img_path = tmp.name
 
-        results = model(temp.name)
-        output_img = results[0].plot()
+    # Predict
+    with st.spinner("Detecting Potholes..."):
+        results = model(temp_img_path)
+        output = results[0].plot()  # returns numpy array (BGR)
 
-        st.image(output_img, caption="Detected Potholes ✅", use_column_width=True)
-        st.success("Done!")
+        # Convert BGR to RGB for Streamlit
+        output_rgb = output[:, :, ::-1]
+
+        st.image(output_rgb, caption="Detected Potholes ✅", use_column_width=True)
+        st.success("Detection complete ✅")
