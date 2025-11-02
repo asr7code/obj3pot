@@ -1,47 +1,61 @@
-# ----------------- FAKE CV2 FIX FOR STREAMLIT CLOUD -----------------
-import sys, types
-
-fake_cv2 = types.ModuleType("cv2")
-fake_cv2.imread = lambda *a, **k: None
-fake_cv2.imwrite = lambda *a, **k: None
-fake_cv2.imshow = lambda *a, **k: None
-fake_cv2.destroyAllWindows = lambda *a, **k: None
-fake_cv2.setNumThreads = lambda *a, **k: None  # ✅ Added to suppress Ultralytics call
-fake_cv2.IMREAD_COLOR = 1
-
-sys.modules["cv2"] = fake_cv2
-# --------------------------------------------------------------------
+import os
+os.environ["QT_QPA_PLATFORM"] = "offscreen"  # Prevent Qt errors in Streamlit
 
 import streamlit as st
-from ultralytics import YOLO
-from PIL import Image
 import numpy as np
-import tempfile
+from PIL import Image
+from ultralytics import YOLO
 
-st.set_page_config(page_title="🚧 Pothole Detector", layout="centered")
-st.title("🚧 Pothole Detection App")
-st.write("Upload a road image — the model will detect potholes and draw bounding boxes.")
+# Try OpenCV import safely
+try:
+    import cv2
+except:
+    cv2 = None
+    st.warning("⚠️ OpenCV GUI backend disabled. Running headless mode.")
 
+# --------------------------
+# Load YOLO Model
+# --------------------------
 @st.cache_resource
 def load_model():
-    return YOLO("best.pt")
+    model = YOLO("best.pt")   # replace with your model file name
+    return model
 
 model = load_model()
 
-uploaded_file = st.file_uploader("📤 Upload Image", type=["jpg", "jpeg", "png"])
+# --------------------------
+# Streamlit UI
+# --------------------------
+st.title("🚦 Object Detection App (YOLO + Streamlit)")
+st.write("Upload an image to detect objects")
 
-if uploaded_file:
-    img = Image.open(uploaded_file).convert("RGB")
+uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    img = Image.open(uploaded_file)
     st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-        img.save(tmp.name)
-        img_path = tmp.name
+    # Convert to numpy array
+    img_np = np.array(img)
 
-    with st.spinner("🔍 Detecting potholes..."):
-        results = model(img_path)
-        output = results[0].plot()
-        output = output[:, :, ::-1]  # BGR → RGB
+    st.write("🔍 Detecting...")
+    
+    # Run YOLO (Force CPU for Streamlit)
+    results = model(img_np, device="cpu")
 
-    st.image(output, caption="✅ Detection Result", use_column_width=True)
-    st.success("Done ✅")
+    # Plot results
+    result_img = results[0].plot()
+
+    st.image(result_img, caption="Detection Output", use_column_width=True)
+
+    # Show detected classes
+    st.subheader("🧾 Detected Objects:")
+    names = results[0].names
+
+    for box in results[0].boxes:
+        cls = int(box.cls)
+        conf = float(box.conf)
+        st.write(f"✔️ {names[cls]} — {conf:.2f}")
+
+st.markdown("---")
+st.caption("✅ Powered by YOLOv8 + Streamlit (Latest Versions)")
