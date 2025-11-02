@@ -1,54 +1,43 @@
-import os
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-
 import streamlit as st
-import numpy as np
+from ultralytics import YOLO
 from PIL import Image
+import numpy as np
+import tempfile
+import os
 
-try:
-    from ultralytics import YOLO
-except Exception as e:
-    st.error(f"YOLO import failed: {e}")
-    st.stop()
+# App config
+st.set_page_config(page_title="Pothole Detection", layout="centered")
+st.title("🕳️ Pothole Detection using YOLOv8")
 
-# --------------------------
-# Load Model
-# --------------------------
+# Model loader
 @st.cache_resource
 def load_model():
-    model_path = "best.pt"
-    if not os.path.exists(model_path):
-        st.error("❌ best.pt file not found. Upload your model file to project root.")
-        st.stop()
-    return YOLO(model_path)
+    return YOLO("best.pt")  # keep file name same
 
 model = load_model()
 
-# --------------------------
-# UI
-# --------------------------
-st.title("🚧 Pothole Detection (YOLOv8)")
-st.write("Upload an image to detect potholes.")
+uploaded_file = st.file_uploader("Upload a road image", type=["jpg", "jpeg", "png"])
 
-file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
-
-if file:
-    img = Image.open(file)
+if uploaded_file:
+    # display image
+    img = Image.open(uploaded_file).convert("RGB")
     st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    img_np = np.array(img)
+    # save to temp
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp:
+        img.save(temp.name)
+        temp_path = temp.name
 
-    st.write("⚙️ Running model...")
+    # run YOLO detection
+    results = model(temp_path)
 
-    results = model(img_np, device="cpu")
+    # save YOLO result to file
+    result_img_path = "result.jpg"
+    results[0].plot(save=True, filename=result_img_path)
 
-    result_img = results[0].plot()
-    st.image(result_img, caption="Result", use_column_width=True)
+    # display result
+    st.subheader("Detection Result:")
+    st.image(result_img_path, use_column_width=True)
 
-    st.subheader("Detections:")
-    names = results[0].names
-
-    for box in results[0].boxes:
-        st.write(f"✔️ {names[int(box.cls)]} ({float(box.conf):.2f})")
-
-st.caption("✅ YOLOv8 + Streamlit Cloud | CPU Mode | Latest Versions")
+    # cleanup
+    os.remove(temp_path)
