@@ -1,5 +1,5 @@
 streamlit
 ultralytics
-Pillow
-numpy
 torch
+numpy
+Pillow
