@@ -1,15 +1,24 @@
-# ----- ✅ Fix OpenCV import crash -----
+# ----- ✅ Fix OpenCV import crash in Streamlit Cloud -----
 import sys, types
-cv2 = types.ModuleType("cv2")
-sys.modules["cv2"] = cv2
-# -------------------------------------
+
+fake_cv2 = types.ModuleType("cv2")
+
+# Add dummy functions/attributes that Ultralytics needs
+fake_cv2.imshow = lambda *a, **k: None
+fake_cv2.waitKey = lambda *a, **k: None
+fake_cv2.destroyAllWindows = lambda *a, **k: None
+fake_cv2.imread = lambda *a, **k: None
+fake_cv2.imwrite = lambda *a, **k: None
+
+sys.modules["cv2"] = fake_cv2
+# --------------------------------------------------------
 
 import streamlit as st
 from ultralytics import YOLO
 import numpy as np
 from PIL import Image, ImageDraw
 
-# ✅ Load model
+# ✅ Load YOLO model
 model = YOLO("best.pt")
 
 def draw_boxes(result, img):
@@ -23,15 +32,15 @@ def draw_boxes(result, img):
 
     return img
 
-st.title("🚧 Pothole Detection using YOLOv8")
-uploaded_file = st.file_uploader("Upload a road image", type=["jpg","jpeg","png"])
+st.title("🚧 Pothole Detection YOLOv8")
+uploaded_file = st.file_uploader("Upload road image", type=["jpg","jpeg","png"])
 
 if uploaded_file:
     img = Image.open(uploaded_file).convert("RGB")
-    st.image(img, caption="🖼️ Input Image", use_container_width=True)
+    st.image(img, caption="Input Image", use_container_width=True)
 
     st.write("Detecting potholes...")
     result = model.predict(img, conf=0.25)[0]
 
     output = draw_boxes(result, img)
-    st.image(output, caption="✅ Detection Result", use_container_width=True)
+    st.image(output, caption="Detected Potholes", use_container_width=True)
